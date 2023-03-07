@@ -311,23 +311,289 @@ Igualmente, contaremos con dichas marcas de tiempo en el fichero de log. Y si li
 
 > **4. Intenta realizar operaciones similares de importación y exportación con las herramientas proporcionadas con MySQL desde línea de comandos, documentando el proceso.**
 
+En MySQL contamos con la herramienta *mysqldump* para realizar volcados de bases de datos.
 
+**Para exportar/volcar todas las bases de datos**\*, podemos usar la opción *--all-databases*:
+
+```bash
+mysqldump -u root -p --all-databases > dump-full-mysql.sql
+
+cat dump-full-mysql.sql
+```
+
+![18](img/18.png)
+
+\* *Nota: con el parámetro --all-databases se exportan todas las bases de datos, a excepción del performance_schema. Más información en la [documentación oficial de MySQL](https://dev.mysql.com/doc/refman/8.0/en/mysqldump.html).*
+
+**Si queremos volcar varias bases de datos**, podemos indicarlas con el parámetro *-B*/*--databases*, separadas por espacios (podemos usar esta opción para incluir de forma explícita la tabla *performance_schema* junto a las demás con *--all-databases*):
+
+```bash
+mysqldump -u root -p -B proyecto_bd scottdb > dump-part-mysql.sql
+
+cat dump-part-mysql.sql
+```
+
+![19](img/19.png)
+
+Si filtramos la salida veremos que únicamente se han volcado las bases de datos *proyecto_bd* y *scottdb* como hemos indicado:
+
+```bash
+grep -E "CREATE DATABASE" dump-part-mysql.sql
+```
+
+![22](img/22.png)
+
+**Si quisiéramos volcar una o varias tablas específicas** en lugar de todas las que contiene la base de datos indicada, podemos usar el parámetro *--tables*:
+
+```bash
+mysqldump -u scott -p scottdb --tables emp salgrade > dump-tables-mysql.sql
+
+cat dump-tables-mysql.sql
+```
+
+![20](img/20.png)
+
+Si filtramos la salida podemos corroborar que únicamente se han volcado las tablas *emp* y *salgrade* como hemos indicado:
+
+```bash
+grep -E "CREATE TABLE|INSERT INTO" dump-tables-mysql.sql
+
+grep -E "CREATE TABLE" dump-tables-mysql.sql
+```
+
+![21](img/21.png)
+
+**Para volcar registros concretos de una tabla**, podemos usar el parámetro *--where*:
+
+```bash
+mysqldump -u scott -p scottdb --tables emp --where="JOB='CLERK'" > dump-where-mysql.sql
+
+grep -E "INSERT INTO" dump-where-mysql.sql
+```
+
+![26](img/26.png)
+
+**Para importar un volcado**, simplemente redirigiré el fichero *.sql* hacia la entrada estándar de la herramienta *mysql*. Podemos usar también la utilidad *mysqlimport*, pero esta no permite importar volcados de bases de datos completos, únicamente de tablas individuales, además de aplicar la restricción de que el nombre del fichero debe ser igual al nombre de la tabla que contiene (su extensión no importa). No hay forma actualmente de cambiar este comportamiento, lo cual lo considero un inconveniente bastante grande. Más información en la [documentación oficial de MySQL](https://dev.mysql.com/doc/refman/8.0/en/mysqlimport.html).
+
+Primero, creo un volcado de la base de datos *scottdb*:
+
+```bash
+mysqldump -u scott -p scottdb > dump-scottdb-mysql.sql
+
+grep -E "CREATE TABLE|INSERT INTO" dump-scottdb-mysql.sql
+
+grep -E "CREATE TABLE" dump-scottdb-mysql.sql
+```
+
+![23](img/23.png)
+
+Ahora, creo una nueva base de datos y usuario, y le asigno privilegios sobre la base de datos:
+
+```bash
+mysql -u root -p
+```
+
+```sql
+CREATE DATABASE prac6ej4db;
+
+CREATE USER 'prac6ej4'@'localhost' IDENTIFIED BY 'prac6ej4';
+
+GRANT ALL PRIVILEGES ON prac6ej4db.* TO 'prac6ej4'@'localhost';
+
+FLUSH PRIVILEGES;
+
+EXIT;
+```
+
+![24](img/24.png)
+
+Finalmente, importo el volcado y compruebo que se ha realizado correctamente:
+
+```bash
+mysql -u prac6ej4 -p prac6ej4db < dump-scottdb-mysql.sql
+
+mysql -u prac6ej4 -p prac6ej4db
+```
+
+```sql
+SHOW TABLES;
+
+SELECT * FROM emp;
+
+SELECT * FROM dept;
+```
+
+![25](img/25.png)
 
 ## **Ejercicio 5**
 
-> **5. Intenta realizar operaciones similares de importación y exportación con las herramientas proporcionadas con Postgres desde línea de comandos, documentando el proceso.**
+> **5. Intenta realizar operaciones similares de importación y exportación con las herramientas proporcionadas con PostgreSQL desde línea de comandos, documentando el proceso.**
 
+En PostgreSQL contamos con dos herramientas para realizar volcados de bases de datos, [*pg_dump*](https://www.postgresql.org/docs/current/app-pgdump.html) y [*pg_dumpall*](https://www.postgresql.org/docs/current/app-pg-dumpall.html). La primera permite volcar bases de datos individuales, mientras que la segunda permite respaldar un clúster completo e incluso realizar una copia de objetos globales como roles, tablespaces, etc.
 
+**Para exportar/volcar todas las bases de datos**\* usaré *pg_dumpall*:
+
+```bash
+pg_dumpall -U postgres -f dump-full-postgres.sql
+```
+
+![27](img/27.png)
+
+![28](img/28.png)
+
+**Si queremos volcar varias bases de datos**, no podemos hacerlo de forma directa con *pg_dump*, tendríamos que usar un *hack* consistente en utilizar *pg_dumpall* con el parámetro *--exclude-database* para excluir las bases de datos que no queremos volcar a modo de lista negra.
+
+**Si quisiéramos volcar una o varias tablas específicas** en lugar de todas las que contiene la base de datos indicada, podemos usar el parámetro *-t*/*--table* por cada tabla a respaldar:
+
+```bash
+pg_dump -U postgres scottdb -t emp -t salgrade -f dump-tables-postgres.sql
+
+grep -E "CREATE TABLE" dump-tables-postgres.sql
+```
+
+![29](img/29.png)
+
+**Para volcar registros concretos de una tabla** no hay una alternativa oficial en PostgreSQL que yo haya podido localizar. Lo más parecido consistiría en la solución descrita por Francisco Pardillo en este post de su blog: <https://www.soportedba.com/2022/01/postgresql-pgdump-filtering-data-by.html>
+
+**Para importar un volcado**, podemos usar [*pg_restore*](https://www.postgresql.org/docs/current/app-pgrestore.html), pero debido al formato de script *.sql* que usaré para mi archivo de volcado, tendré que usar *psql*.
+
+Primero, creo un volcado de la base de datos *scottdb*, usaré la opción *--no-owner* para que al restaurarlo, la propiedad de los objetos pasen a ser del usuario que lo importe, cabe recordar que en [la documentación oficial de PostgreSQL podemos encontrar una lista de las opciones disponibles para *pg_dump*](https://www.postgresql.org/docs/current/app-pgdump.html):
+
+```bash
+pg_dump -U scott scottdb -h localhost --no-owner -f dump-scottdb-postgres.sql
+
+grep -E "CREATE TABLE" dump-scottdb-postgres.sql
+```
+
+![30](img/30.png)
+
+Ahora, creo un nuevo usuario y base de datos:
+
+```bash
+psql
+```
+
+```sql
+CREATE USER prac6ej4 WITH PASSWORD 'prac6ej4';
+
+CREATE DATABASE prac6ej4db;
+
+GRANT ALL PRIVILEGES ON DATABASE "prac6ej4db" TO prac6ej4;
+
+\q
+```
+
+Finalmente, importo el volcado y compruebo que se ha realizado correctamente:
+
+```bash
+psql -U prac6ej4 -d prac6ej4db -h localhost -f dump-scottdb-postgres.sql
+
+psql -U prac6ej4 -d prac6ej4db -h localhost
+```
+
+![31](img/31.png)
+
+```sql
+\dt
+
+SELECT * FROM emp;
+
+SELECT * FROM dept;
+```
+
+![32](img/32.png)
 
 ## **Ejercicio 6**
 
 > **6. Exporta los documentos de una colección de MongoDB que cumplan una determinada condición e impórtalos en otra base de datos.**
 
+Para realizar volcados en Mongo disponemos de dos utilidades, [*mongodump*](https://www.mongodb.com/docs/database-tools/mongodump/) y [*mongoexport*](https://www.mongodb.com/docs/database-tools/mongoexport/). En este caso, utilizaré *mongodump*.
 
+Utilizaré la base de datos *proyecto_bd* que ya tenía creada de años anteriores:
+
+```bash
+mongosh -u juanje -p juanje --authenticationDatabase proyecto_bd
+```
+
+```js
+use proyecto_bd;
+
+show collections;
+
+db.pacientes.find().pretty();
+```
+
+![33](img/33.png)
+
+Para exportar la colección pacientes con *mongodump*:
+
+```bash
+mongodump -u juanje -p juanje --authenticationDatabase proyecto_bd --db proyecto_bd --collection pacientes
+```
+
+No obstante, como en este caso solo quiero volcar los documentos que cumplan una determinada condición, debo añadir el parámetro *--query*:
+
+```bash
+mongodump -u juanje -p juanje --authenticationDatabase proyecto_bd --db proyecto_bd --collection pacientes --query '{ "sexo": "H" }'
+```
+
+Por defecto *mongodump* crea en la ubicación actual el directorio *dump* y dentro de él crea una carpeta con el nombre de la base de datos y dentro de esta, se encuentran los volcados de las colecciones. En este caso, el volcado de la colección *pacientes* se encuentra en *dump/proyecto_bd/pacientes.bson*, junto a su fichero de metadatos *dump/proyecto_bd/pacientes.metadata.json*.
+
+![34](img/34.png)
+
+Los ficheros BSON son archivos binarios que para poderlos visualizar, debemos usar la utilidad [*bsondump*](https://www.mongodb.com/docs/database-tools/bsondump/). Además, su salida la dirigiré a *jq* para que me la muestre de forma más legible:
+
+```bash
+# sudo apt install jq -y
+
+bsondump dump/proyecto_bd/pacientes.bson | jq
+```
+
+Podemos observar como se han volcado los documentos que cumplen la condición especificada en el parámetro *--query*, es decir, solo aquellos pacientes cuyo sexo es *H*:
+
+![35](img/35.png)
+
+Para importar los documentos volcados, utilizaremos la utilidad [*mongorestore*](https://www.mongodb.com/docs/database-tools/mongorestore/):
+
+Primero, creo una nueva colección:
+
+```bash
+mongosh -u juanje -p juanje --authenticationDatabase proyecto_bd
+```
+
+```js
+use proyecto_bd;
+
+db.createCollection("pacientes_hombres_prac6ej6");
+```
+
+![36](img/36.png)
+
+Ahora, importo los documentos volcados:
+
+```bash
+mongorestore -u juanje -p juanje --authenticationDatabase proyecto_bd --db proyecto_bd --collection pacientes_hombres_prac6ej6 dump/proyecto_bd/pacientes.bson --verbose
+```
+
+![37](img/37.png)
+
+Compruebo que se han importado correctamente:
+
+```bash
+mongosh -u juanje -p juanje --authenticationDatabase proyecto_bd
+```
+
+```js
+use proyecto_bd;
+
+db.pacientes_hombres_prac6ej6.find().pretty();
+```
+
+![38](img/38.png)
 
 ## **Ejercicio 7**
 
-> **7. SQL\*Loader es una herramienta que sirve para cargar grandes volúmenes de datos en una instancia de ORACLE. Exportad los datos de una base de datos completa desde Postgres a texto plano con delimitadores y emplead SQL\*Loader para realizar el proceso de carga de dichos datos a una instancia ORACLE. Debéis documentar todo el proceso, explicando los distintos ficheros de configuración y de log que tiene SQL\*Loader.**
+> **7. SQL\*Loader es una herramienta que sirve para cargar grandes volúmenes de datos en una instancia de Oracle. Exportad los datos de una base de datos completa desde PostgreSQL a texto plano con delimitadores y emplead SQL\*Loader para realizar el proceso de carga de dichos datos a una instancia Oracle. Debéis documentar todo el proceso, explicando los distintos ficheros de configuración y de log que tiene SQL\*Loader.**
 
 
 
