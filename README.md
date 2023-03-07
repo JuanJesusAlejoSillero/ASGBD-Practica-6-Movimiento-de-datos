@@ -11,6 +11,9 @@
   - [**Ejercicio 5**](#ejercicio-5)
   - [**Ejercicio 6**](#ejercicio-6)
   - [**Ejercicio 7**](#ejercicio-7)
+- [**ASGBD - Examen**](#asgbd---examen)
+  - [**Práctica 8: Movimiento de datos**](#práctica-8-movimiento-de-datos)
+    - [**Opción 2**](#opción-2)
 
 ---
 
@@ -600,3 +603,97 @@ db.pacientes_hombres_prac6ej6.find().pretty();
 ---
 
 ✒️ **Documentación realizada por Juan Jesús Alejo Sillero.**
+
+---
+
+# **ASGBD - Examen**
+
+## **Práctica 8: Movimiento de datos**
+
+### **Opción 2**
+
+**Realiza una exportación de datos en una base de datos PostgreSQL con varias tablas, cumpliendo que:**
+
+- **De las tablas existentes se excluirá una.**
+
+- **De una de las tablas exportadas solo se exportarán las filas que cumplan una condición concreta.**
+
+- **Se excluirán las tablas que no tengan ninguna fila.**
+
+- **El resultado de esta exportación se importará en otra base de datos.**
+
+Entro en la VM con PostgreSQL, me conecto a *psql* y listo las tablas de la base de datos *scottdb*:
+
+```bash
+psql
+```
+
+```sql
+\c scottdb
+
+\dt
+```
+
+![EX5](img/EX5.png)
+
+Excluiré la tabla *dummy* y solo exportaré las filas de la tabla *emp* que cumplan la condición *sal > 2000*.
+
+Como PostgreSQL no tiene forma de exportar una tabla filtrando sus filas, crearé una tabla usando la sentencia *CREATE TABLE AS*:
+
+```sql
+CREATE TABLE emp_sal_mayor_2000 AS SELECT * FROM emp WHERE sal > 2000;
+
+SELECT * FROM emp_sal_mayor_2000;
+```
+
+![EX6](img/EX6.png)
+
+Ahora, creo la exportación con *pg_dump*:
+
+```bash
+pg_dump -U scott scottdb -h localhost --no-owner --exclude-table=dummy -f dump-examen.sql
+
+grep -E "CREATE TABLE" dump-examen.sql
+```
+
+![EX7](img/EX7.png)
+
+Para importar el backup en otra base de datos:
+
+```bash
+psql
+```
+
+Creo una base de datos nueva, un usuario nuevo y le doy permisos sobre la base de datos:
+
+```sql
+CREATE USER examen WITH PASSWORD 'examen';
+
+CREATE DATABASE examendb;
+
+GRANT ALL PRIVILEGES ON DATABASE "examendb" TO examen;
+
+\q
+```
+
+![EX8](img/EX8.png)
+
+Finalmente, importo el volcado y compruebo que se ha realizado correctamente:
+
+```bash
+psql -U examen -d examendb -h localhost -f dump-examen.sql
+
+psql -U examen -d examendb -h localhost
+```
+
+![EX9](img/EX9.png)
+
+```sql
+\dt
+
+SELECT * FROM emp_sal_mayor_2000;
+
+SELECT * FROM emp;
+```
+
+![EX10](img/EX10.png)
